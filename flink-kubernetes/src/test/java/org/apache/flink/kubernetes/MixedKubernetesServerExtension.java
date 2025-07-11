@@ -22,11 +22,10 @@ import io.fabric8.kubernetes.client.Client;
 import io.fabric8.kubernetes.client.NamespacedKubernetesClient;
 import io.fabric8.kubernetes.client.server.mock.KubernetesMockServer;
 import io.fabric8.mockwebserver.Context;
+import io.fabric8.mockwebserver.MockWebServer;
 import io.fabric8.mockwebserver.ServerRequest;
 import io.fabric8.mockwebserver.ServerResponse;
 import io.fabric8.mockwebserver.dsl.MockServerExpectation;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -35,7 +34,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.TimeUnit;
 
 /** The mock server that host MixedDispatcher. */
 public class MixedKubernetesServerExtension implements BeforeEachCallback, AfterEachCallback {
@@ -57,7 +55,7 @@ public class MixedKubernetesServerExtension implements BeforeEachCallback, After
     }
 
     @Override
-    public void beforeEach(ExtensionContext extensionContext) throws Exception {
+    public void beforeEach(ExtensionContext extensionContext) {
         final HashMap<ServerRequest, Queue<ServerResponse>> response = new HashMap<>();
         mock =
                 crudMode
@@ -72,7 +70,7 @@ public class MixedKubernetesServerExtension implements BeforeEachCallback, After
     }
 
     @Override
-    public void afterEach(ExtensionContext extensionContext) throws Exception {
+    public void afterEach(ExtensionContext extensionContext) {
         mock.destroy();
         clients.forEach(Client::close);
     }
@@ -81,10 +79,6 @@ public class MixedKubernetesServerExtension implements BeforeEachCallback, After
         NamespacedKubernetesClient client = mock.createClient();
         clients.add(client);
         return client;
-    }
-
-    public RecordedRequest takeRequest(long timeout, TimeUnit unit) throws Exception {
-        return mockWebServer.takeRequest(timeout, unit);
     }
 
     public int getRequestCount() {
