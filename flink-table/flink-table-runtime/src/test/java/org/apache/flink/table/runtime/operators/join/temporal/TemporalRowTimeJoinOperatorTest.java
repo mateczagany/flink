@@ -191,6 +191,31 @@ class TemporalRowTimeJoinOperatorTest extends TemporalTimeJoinOperatorTestBase {
     }
 
     @Test
+    void testRowTimeTemporalJoinPreservesLeftRowsWithSameTimestamp() throws Exception {
+        TemporalRowTimeJoinOperator joinOperator =
+                new TemporalRowTimeJoinOperator(rowType, rowType, joinCondition, 0, 0, 0, 0, false);
+        KeyedTwoInputStreamOperatorTestHarness<RowData, RowData, RowData, RowData> testHarness =
+                createTestHarness(joinOperator);
+
+        testHarness.open();
+
+        testHarness.processElement2(insertRecord(2L, "k1", "1a2"));
+        testHarness.processElement1(insertRecord(3L, "k1", "1a3"));
+        testHarness.processElement1(insertRecord(3L, "k1", "1a4"));
+
+        testHarness.processWatermark1(new Watermark(3));
+        testHarness.processWatermark2(new Watermark(3));
+
+        List<Object> expectedOutput = new ArrayList<>();
+        expectedOutput.add(insertRecord(3L, "k1", "1a3", 2L, "k1", "1a2"));
+        expectedOutput.add(insertRecord(3L, "k1", "1a4", 2L, "k1", "1a2"));
+        expectedOutput.add(new Watermark(3));
+
+        assertor.assertOutputEquals("output wrong.", expectedOutput, testHarness.getOutput());
+        testHarness.close();
+    }
+
+    @Test
     void testRowTimeInnerTemporalJoinOnUpsertSource() throws Exception {
         List<Object> expectedOutput = new ArrayList<>();
         expectedOutput.add(new Watermark(0));
