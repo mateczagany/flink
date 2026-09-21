@@ -398,13 +398,6 @@ jobs:
              curl -sSL -o kubectl "https://dl.k8s.io/release/$(curl -sSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" &&
              sudo install -m 0755 kubectl /usr/local/bin/kubectl
 
-      # netty-tcnative requires OpenSSL v1.0.0
-      - name: "Install OpenSSL"
-        run: |
-          sudo apt-get install -y bc libapr1
-          wget -r --no-parent -nd --accept=libssl1.0.0_*ubuntu5.*_amd64.deb http://security.ubuntu.com/ubuntu/pool/main/o/openssl1.0/
-          sudo apt install ./libssl1.0.0_*.deb
-
       - name: "Download build artifacts from compile job"
         uses: actions/download-artifact@v8
         with:
@@ -451,6 +444,12 @@ jobs:
         with:
           maven-parameters: "install -DskipTests -Dfast $PROFILE -Pskip-webui-build -T1C"
           env: "${{ inputs.environment }}"
+
+      # the dynamically linked netty-tcnative shipped in opt/ needs libapr1 and an OpenSSL >= 3.2 on the
+      # host; ubuntu-24.04 only has 3.0, so this installs a newer libssl the same way the flink-ci-docker
+      # image does and verifies that the shipped native loads
+      - name: "Install OpenSSL for netty-tcnative"
+        run: FLINK_DIR=`pwd`/build-target ./tools/ci/install_openssl_for_tcnative.sh
 
       - name: "Run E2E Tests"
         id: test-run

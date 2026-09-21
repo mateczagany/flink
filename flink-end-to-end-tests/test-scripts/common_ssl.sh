@@ -78,20 +78,31 @@ function _set_conf_ssl_helper {
     openssl pkcs12 ${additional_params} -passin pass:${password} -in "${ssl_dir}/node.keystore" -out "${ssl_dir}/node.pem" -nodes
 
     if [ "${provider}" = "OPENSSL" -a "${provider_lib}" = "dynamic" ]; then
+        # the dynamically linked tcnative loads the system's libssl/libcrypto (>= 3.2 required since
+        # tcnative 2.0.76) and libapr-1; CI installs them via tools/ci/install_openssl_for_tcnative.sh
         cp $FLINK_DIR/opt/flink-shaded-netty-tcnative-dynamic-*.jar $FLINK_DIR/lib/
     elif [ "${provider}" = "OPENSSL" -a "${provider_lib}" = "static" ]; then
-        # Flink is not providing the statically-linked library because of potential licensing issues
-        # -> we need to build it ourselves
-        FLINK_SHADED_VERSION=$(cat ${END_TO_END_DIR}/../pom.xml | sed -n 's/.*<flink.shaded.version>\(.*\)<\/flink.shaded.version>/\1/p')
-        echo "BUILDING flink-shaded-netty-tcnative-static"
-        # Adding retry to git clone, due to FLINK-24971
-        retry_times_with_exponential_backoff 5 git clone https://github.com/apache/flink-shaded.git
-        cd flink-shaded
-        git checkout "release-${FLINK_SHADED_VERSION}"
-        run_mvn clean package -Pinclude-netty-tcnative-static -pl flink-shaded-netty-tcnative-static
-        cp flink-shaded-netty-tcnative-static/target/flink-shaded-netty-tcnative-static-*.jar $FLINK_DIR/lib/
-        cd ..
-        rm -rf flink-shaded
+        # flink-shaded publishes the statically linked tcnative (bundling BoringSSL, which is Apache
+        # licensed nowadays) to Maven Central; the Flink distribution itself only bundles the dynamic
+        # variant in opt/. Fetch the static artifact with the same version as the bundled dynamic jar
+        # instead of building it from a flink-shaded checkout during the test (FLINK-39002).
+        local tcnative_version
+        tcnative_version=$(ls $FLINK_DIR/opt/flink-shaded-netty-tcnative-dynamic-*.jar | sed -n 's/.*flink-shaded-netty-tcnative-dynamic-\(.*\)\.jar/\1/p')
+        if [ -z "${tcnative_version}" ]; then
+            echo "Could not determine the tcnative version from $FLINK_DIR/opt/flink-shaded-netty-tcnative-dynamic-*.jar"
+            exit 1
+        fi
+        if [ ! -f "$FLINK_DIR/lib/flink-shaded-netty-tcnative-static-${tcnative_version}.jar" ]; then
+            echo "Fetching org.apache.flink:flink-shaded-netty-tcnative-static:${tcnative_version} into $FLINK_DIR/lib/"
+            retry_times_with_exponential_backoff 5 run_mvn -N -q --file "${END_TO_END_DIR}/pom.xml" \
+                org.apache.maven.plugins:maven-dependency-plugin:copy \
+                -Dartifact="org.apache.flink:flink-shaded-netty-tcnative-static:${tcnative_version}" \
+                -DoutputDirectory="$FLINK_DIR/lib"
+        fi
+    fi
+
+    if [ "${provider}" = "OPENSSL" ]; then
+        verify_openssl_provider_available "${ssl_dir}"
     fi
 
     # adapt config
@@ -103,6 +114,43 @@ function _set_conf_ssl_helper {
     set_config_key security.ssl.${type}.key-password ${password}
     set_config_key security.ssl.${type}.truststore ${ssl_dir}/ca.truststore
     set_config_key security.ssl.${type}.truststore-password ${password}
+}
+
+# Fails fast if the netty OpenSSL provider cannot be loaded with the jars currently in $FLINK_DIR/lib,
+# i.e. if OpenSsl.isAvailable() is false. Flink itself only detects this while creating its SSL
+# contexts ("openSSL not available" in the JobManager/TaskManager logs), which surfaces in an e2e test
+# as an opaque cluster start-up or handshake failure.
+function verify_openssl_provider_available {
+    local probe_dir=$1
+    local java_cmd="java"
+    if [ -n "${JAVA_HOME:-}" ]; then
+        java_cmd="${JAVA_HOME}/bin/java"
+    fi
+
+    cat > "${probe_dir}/OpenSslProbe.java" <<'EOF'
+import org.apache.flink.shaded.netty4.io.netty.handler.ssl.OpenSsl;
+
+public class OpenSslProbe {
+    public static void main(String[] args) {
+        if (OpenSsl.isAvailable()) {
+            System.out.println("netty OpenSSL provider is available: " + OpenSsl.versionString());
+        } else {
+            System.err.println("netty OpenSSL provider is NOT available:");
+            OpenSsl.unavailabilityCause().printStackTrace();
+            System.exit(1);
+        }
+    }
+}
+EOF
+
+    echo "Checking that the OPENSSL provider can be loaded from $FLINK_DIR/lib"
+    if ! "${java_cmd}" -cp "$FLINK_DIR/lib/*" "${probe_dir}/OpenSslProbe.java"; then
+        echo "[FAIL] security.ssl.provider=OPENSSL was requested but netty's OpenSsl.isAvailable() is false."
+        echo "       Flink would fail with 'openSSL not available' when setting up SSL. Check that the"
+        echo "       tcnative jar in $FLINK_DIR/lib ships a native for this platform and, for the dynamic"
+        echo "       linkage, that libapr-1 and an OpenSSL >= 3.2 (OPENSSL_3.2.0) are installed."
+        exit 1
+    fi
 }
 
 function _set_conf_mutual_rest_ssl {

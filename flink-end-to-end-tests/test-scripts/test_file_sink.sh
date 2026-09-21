@@ -91,9 +91,14 @@ else
   exit 1
 fi
 
-# randomly set up openSSL with dynamically/statically linked libraries
-OPENSSL_LINKAGE=$(if (( RANDOM % 2 )) ; then echo "dynamic"; else echo "static"; fi)
-echo "Executing test with ${OPENSSL_LINKAGE} openSSL linkage (random selection between 'dynamic' and 'static')"
+# Run with mutual internal + REST SSL through the OPENSSL provider, using the dynamically linked
+# tcnative that Flink ships in opt/ (i.e. what users get when they copy it into lib/). The linkage
+# used to be picked at random between 'dynamic' and 'static', which made runs non-reproducible and,
+# because the static jar was built from a flink-shaded checkout during the test, fragile
+# (FLINK-39002). The static (BoringSSL) variant can still be exercised by setting
+# OPENSSL_LINKAGE=static in the environment.
+OPENSSL_LINKAGE="${OPENSSL_LINKAGE:-dynamic}"
+echo "Executing test with ${OPENSSL_LINKAGE} openSSL linkage"
 
 set_conf_ssl "mutual" "OPENSSL" "${OPENSSL_LINKAGE}"
 # set_conf_ssl moves netty libraries into FLINK_DIR which we want to rollback at the end of the test run

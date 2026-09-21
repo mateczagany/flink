@@ -133,16 +133,17 @@ jobs:
         sudo cp ./tools/ci/ubuntu-mirror-list.txt ${mirror_file_path}
         sudo sed -i "s~${default_ubuntu_mirror_url}~mirror+file:${mirror_file_path}~" /etc/apt/sources.list
         sudo apt-get update
-
-        echo "Installing required software for netty-tcnative"
-        sudo apt-get install -y bc libapr1
-        wget -r --no-parent -nd --accept=libssl1.0.0_*ubuntu5.*_amd64.deb http://security.ubuntu.com/ubuntu/pool/main/o/openssl1.0/
-        sudo apt install ./libssl1.0.0_*.deb
       displayName: Prepare E2E run
       condition: not(eq(variables['SKIP'], '1'))
     # e2e only needs the built binary; MVN_LICENSE_CHECK_ARGS="" skips all QA (convergence, license, structural) and the DEBUG shade logging, which run in the license_check job.
     - script: MVN_LICENSE_CHECK_ARGS="" ${{parameters.environment}} PROFILE="$PROFILE -Dfast -Pskip-webui-build" ./tools/ci/compile_ci.sh
       displayName: Build Flink
+      condition: not(eq(variables['SKIP'], '1'))
+    # the dynamically linked netty-tcnative shipped in opt/ needs libapr1 and an OpenSSL >= 3.2 on the host;
+    # ubuntu-24.04 only has 3.0, so this installs a newer libssl the same way the flink-ci-docker image does
+    # and verifies that the shipped native loads
+    - script: FLINK_DIR=`pwd`/build-target ./tools/ci/install_openssl_for_tcnative.sh
+      displayName: Install OpenSSL for netty-tcnative
       condition: not(eq(variables['SKIP'], '1'))
     - script: ${{parameters.environment}} FLINK_DIR=`pwd`/build-target ./tools/ci/uploading_watchdog.sh flink-end-to-end-tests/run-nightly-tests.sh ${{parameters.group}}
       displayName: Run e2e tests
