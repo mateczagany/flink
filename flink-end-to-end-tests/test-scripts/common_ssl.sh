@@ -85,18 +85,18 @@ function _set_conf_ssl_helper {
             export LD_LIBRARY_PATH="${FLINK_E2E_OPENSSL32_LIB}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
         fi
     elif [ "${provider}" = "OPENSSL" -a "${provider_lib}" = "static" ]; then
-        # Flink is not providing the statically-linked library because of potential licensing issues
-        # -> we need to build it ourselves
-        FLINK_SHADED_VERSION=$(cat ${END_TO_END_DIR}/../pom.xml | sed -n 's/.*<flink.shaded.version>\(.*\)<\/flink.shaded.version>/\1/p')
-        echo "BUILDING flink-shaded-netty-tcnative-static"
-        # Adding retry to git clone, due to FLINK-24971
-        retry_times_with_exponential_backoff 5 git clone https://github.com/apache/flink-shaded.git
-        cd flink-shaded
-        git checkout "release-${FLINK_SHADED_VERSION}"
-        run_mvn clean package -Pinclude-netty-tcnative-static -pl flink-shaded-netty-tcnative-static
-        cp flink-shaded-netty-tcnative-static/target/flink-shaded-netty-tcnative-static-*.jar $FLINK_DIR/lib/
-        cd ..
-        rm -rf flink-shaded
+        # The static jar is not part of the distribution; the e2e build copies it here from the Maven
+        # repository (see flink-end-to-end-tests-common/pom.xml). To test an unreleased flink-shaded,
+        # install it into the local repository before building Flink: tools/ci/install_flink_shaded.sh
+        local static_jar_dir="${END_TO_END_DIR}/flink-end-to-end-tests-common/target/flink-shaded-netty-tcnative-static"
+        local static_jars=( "${static_jar_dir}"/flink-shaded-netty-tcnative-static-*.jar )
+        if [ ! -f "${static_jars[0]}" ]; then
+            echo "flink-shaded-netty-tcnative-static jar not found in ${static_jar_dir}."
+            echo "Build flink-end-to-end-tests-common (mvn package) before running this test."
+            exit 1
+        fi
+        echo "Using prebuilt $(basename "${static_jars[0]}")"
+        cp "${static_jars[0]}" "$FLINK_DIR/lib/"
     fi
 
     # adapt config

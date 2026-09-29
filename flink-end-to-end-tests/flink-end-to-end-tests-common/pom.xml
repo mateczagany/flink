@@ -154,6 +154,32 @@ under the License.
 					</execution>
 				</executions>
 			</plugin>
+			<!-- Provides the statically linked netty-tcnative jar to test-scripts/common_ssl.sh.
+			     It is resolved from the Maven repository like every other flink-shaded artifact,
+			     so a locally installed flink-shaded build (tools/ci/install_flink_shaded.sh) is picked up. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>copy-netty-tcnative-static</id>
+						<phase>package</phase>
+						<goals>
+							<goal>copy</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.directory}/flink-shaded-netty-tcnative-static</outputDirectory>
+							<artifactItems>
+								<artifactItem>
+									<groupId>org.apache.flink</groupId>
+									<artifactId>flink-shaded-netty-tcnative-static</artifactId>
+									<type>jar</type>
+								</artifactItem>
+							</artifactItems>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 

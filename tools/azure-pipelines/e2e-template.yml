@@ -155,6 +155,9 @@ jobs:
       displayName: Prepare E2E run
       condition: not(eq(variables['SKIP'], '1'))
     # e2e only needs the built binary; MVN_LICENSE_CHECK_ARGS="" skips all QA (convergence, license, structural) and the DEBUG shade logging, which run in the license_check job.
+    - script: ${{parameters.environment}} ./tools/ci/install_flink_shaded.sh
+      displayName: Install flink-shaded (only when FLINK_SHADED_REF is set)
+      condition: not(eq(variables['SKIP'], '1'))
     - script: MVN_LICENSE_CHECK_ARGS="" ${{parameters.environment}} PROFILE="$PROFILE -Dfast -Pskip-webui-build" ./tools/ci/compile_ci.sh
       displayName: Build Flink
       condition: not(eq(variables['SKIP'], '1'))

@@ -69,6 +69,8 @@ jobs:
     displayName: "Set JDK"
   # Compile
   # Fast multi-threaded build that only produces the test artifact; all QA (structural + convergence + license) runs single-threaded in the license_check job (MVN_LICENSE_CHECK_ARGS="" disables it here).
+  - script: ${{parameters.environment}} ./tools/ci/install_flink_shaded.sh
+    displayName: Install flink-shaded (only when FLINK_SHADED_REF is set)
   - script: |
       MVN_LICENSE_CHECK_ARGS="" ${{parameters.environment}} ./tools/ci/compile_ci.sh -Dfast || exit $?
       ./tools/ci/create_build_artifact.sh
@@ -110,6 +112,8 @@ jobs:
       echo "##vso[task.setvariable variable=PATH]$JAVA_HOME_${{parameters.jdk}}_X64/bin:$PATH"
     displayName: "Set JDK"
   # Full single-threaded build (deploy + -Pcheck-convergence) running every structural QA check and the license check.
+  - script: ${{parameters.environment}} ./tools/ci/install_flink_shaded.sh
+    displayName: Install flink-shaded (only when FLINK_SHADED_REF is set)
   - script: ${{parameters.environment}} ./tools/ci/compile_ci.sh
     displayName: QA checks
 
@@ -192,6 +196,8 @@ jobs:
     displayName: Set coredump pattern
 
   # Test
+  - script: ${{parameters.environment}} ./tools/ci/install_flink_shaded.sh
+    displayName: Install flink-shaded (only when FLINK_SHADED_REF is set)
   - script: ${{parameters.environment}} ./tools/ci/uploading_watchdog.sh ./tools/ci/test_controller.sh $(module)
     displayName: Test - $(module)
     env:

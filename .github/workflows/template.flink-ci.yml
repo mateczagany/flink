@@ -102,6 +102,10 @@ jobs:
         with:
           value: "${{ github.workflow }}-${{ inputs.workflow-caller-id }}"
 
+      - name: "Install flink-shaded (only when FLINK_SHADED_REF is set)"
+        working-directory: ${{ env.CONTAINER_LOCAL_WORKING_DIR }}
+        run: ${{ inputs.environment }} ./tools/ci/install_flink_shaded.sh
+
       - name: "Compile Flink"
         uses: "./.github/actions/run_mvn"
         timeout-minutes: ${{ fromJSON(env.GHA_JOB_TIMEOUT) }}
@@ -173,6 +177,10 @@ jobs:
         working-directory: ${{ env.CONTAINER_LOCAL_WORKING_DIR }}
         run: |
           ./tools/ci/unpack_build_artifact.sh
+
+      - name: "Install flink-shaded (only when FLINK_SHADED_REF is set)"
+        working-directory: ${{ env.CONTAINER_LOCAL_WORKING_DIR }}
+        run: ${{ inputs.environment }} ./tools/ci/install_flink_shaded.sh
 
       - name: "Test"
         working-directory: ${{ env.CONTAINER_LOCAL_WORKING_DIR }}
@@ -275,6 +283,10 @@ jobs:
         if: ${{ !cancelled() && steps.docker-cache.outputs.cache-hit != 'true' }}
         working-directory: ${{ env.CONTAINER_LOCAL_WORKING_DIR }}
         run: ./tools/ci/cache_docker_images.sh load
+
+      - name: "Install flink-shaded (only when FLINK_SHADED_REF is set)"
+        working-directory: ${{ env.CONTAINER_LOCAL_WORKING_DIR }}
+        run: ${{ inputs.environment }} ./tools/ci/install_flink_shaded.sh
 
       - name: "Create non-root user for test execution"
         run: |
@@ -445,6 +457,9 @@ jobs:
       - name: "Load Docker images if not present in Cache, yet"
         if: ${{ !cancelled() && steps.docker-cache.outputs.cache-hit != 'true' }}
         run: ./tools/ci/cache_docker_images.sh load
+
+      - name: "Install flink-shaded (only when FLINK_SHADED_REF is set)"
+        run: ${{ inputs.environment }} ./tools/ci/install_flink_shaded.sh
 
       - name: "Build Flink"
         uses: "./.github/actions/run_mvn"

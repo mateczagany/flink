@@ -65,6 +65,33 @@ $ FLINK_DIR=<flink dir> flink-end-to-end-tests/run-single-test.sh flink-end-to-e
 ```
 
 
+## Running CI against an unreleased flink-shaded
+
+All flink-shaded artifacts, including `flink-shaded-netty-tcnative-static` used by the OpenSSL
+end-to-end tests, are resolved from the Maven repository. To run the CI pipelines against a
+flink-shaded branch, tag, commit or pull request that is not released yet, extend the `environment`
+string of the pipeline you trigger:
+
+```yaml
+# azure-pipelines.yml (personal Azure pipeline) or the `environment` input of a
+# .github/workflows/template.flink-ci.yml caller
+environment: PROFILE="-Djdk17 -Pjava17-target -Dflink.shaded.version=23.0" FLINK_SHADED_REPO=https://github.com/<you>/flink-shaded.git FLINK_SHADED_REF=my-branch
+```
+
+* `FLINK_SHADED_REF` is a branch, tag, full 40-character commit SHA or `pull/<number>/head`. Without
+  it the released artifacts are used.
+* `FLINK_SHADED_REPO` defaults to `https://github.com/apache/flink-shaded.git`; any fork works.
+* Add `-Dflink.shaded.version=<version>` to `PROFILE` when the branch's `pom.xml` version differs
+  from Flink's `flink.shaded.version`; the install step logs a warning when these two differ. If the
+  branch changed the netty-tcnative version, also add `-Dflink.shaded.netty.tcnative.version=<version>`;
+  this is not checked automatically, a mismatch surfaces as an unresolvable artifact in the Flink build.
+
+`tools/ci/install_flink_shaded.sh` runs before every Maven build in CI, builds the checkout with
+`-Pinclude-netty-tcnative-static` and installs it into the job's Maven repository. The Flink build
+that follows then picks up the unreleased artifacts. An unreleased install also marks that Maven
+repository, and the next CI run purges the cached flink-shaded artifacts before building, so a cache
+saved from such a run does not leak the unreleased jars into later runs.
+
 ## Writing Tests
 
 As of November 2020, Flink has two broad types of end-to-end tests: Bash-based end-to-end tests, located in the `test-scripts/` directory and Java-based end-to-end tests, such as the `PrometheusReporterEndToEndITCase`. The community recommends writing new tests as Java tests, as we are planning to deprecate the bash-based tests in the long run.
