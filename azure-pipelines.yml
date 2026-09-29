@@ -79,7 +79,7 @@ stages:
             vmImage: 'ubuntu-24.04'
           e2e_pool_definition:
             vmImage: 'ubuntu-24.04'
-          environment: PROFILE="-Dflink.hadoop.version=2.10.2 -Djdk17 -Pjava17-target"
+          environment: PROFILE="-Dflink.hadoop.version=2.10.2 -Djdk17 -Pjava17-target" FLINK_SHADED_REPO=https://github.com/mateczagany/flink-shaded.git FLINK_SHADED_REF=master
           run_end_to_end: false
           container: flink-build-container
           jdk: 17
